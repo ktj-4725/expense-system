@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>지출결의서 관리 시스템</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function ExpenseApprovalSystem() {
+          const [expenses, setExpenses] = useState([]);
+          const [currentExpense, setCurrentExpense] = useState(null);
+          const [formData, setFormData] = useState({
+            docNumber: '',
+            date: new Date().toISOString().split('T')[0],
+            department: '',
+            author: '',
+            summary: '판관비 지급의 건',
+            items: [{
+              paymentDate: '',
+              description: '',
+              accountCode: '',
+              paymentTo: '',
+              paymentMethod: '',
+              amount: '',
+              evidence: '',
+              notes: ''
+            }]
+          });
+          const [viewMode, setViewMode] = useState('list');
+
+          useEffect(() => {
+            loadExpenses();
+          }, []);
+
+          const loadExpenses = () => {
+            try {
+              const stored = localStorage.getItem('expenses');
+              if (stored) {
+                setExpenses(JSON.parse(stored));
+              }
+            } catch (error) {
+              console.log('저장된 결의서가 없습니다.');
+            }
+          };
+
+          const saveToStorage = (newExpenses) => {
+            localStorage.setItem('expenses', JSON.stringify(newExpenses));
+          };
+
+          const handleInputChange = (e) => {
+            setFormData({ ...formData, [e.target.name]: e.target.value });
+          };
+
+          const handleItemChange = (index, field, value) => {
+            const newItems = [...formData.items];
+            newItems[index][field] = value;
+            setFormData({ ...formData, items: newItems });
+          };
+
+          const addItem = () => {
+            setFormData({
+              ...formData,
+              items: [...formData.items, {
+                paymentDate: '',
+                description: '',
+                accountCode: '',
+                paymentTo: '',
+                paymentMethod: '',
+                amount: '',
+                evidence: '',
+                notes: ''
+              }]
+            });
+          };
+
+          const removeItem = (index) => {
+            if (formData.items.length > 1) {
+              const newItems = formData.items.filter((_, i) => i !== index);
+              setFormData({ ...formData, items: newItems });
+            }
+          };
+
+          const calculateTotal = () => {
+            return formData.items.reduce((sum, item) => {
+              const amount = parseFloat(item.amount) || 0;
+              return sum + amount;
+            }, 0);
+          };
+
+          const calculateCount = () => {
+            return formData.items.filter(item => item.amount && parseFloat(item.amount) > 0).length;
+          };
+
+          const saveExpense = () => {
+            if (!formData.department || !formData.author || !formData.date) {
+              alert('부서, 작성자, 일자를 입력해주세요.');
+              return;
+            }
+
+            const expenseData = {
+              ...formData,
+              id: currentExpense?.id || `EXP${Date.now()}`,
+              totalAmount: calculateTotal(),
+              totalCount: calculateCount(),
+              createdAt: currentExpense?.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+
+            const newExpenses = currentExpense 
+              ? expenses.map(e => e.id === currentExpense.id ? expenseData : e)
+              : [...expenses, expenseData];
+
+            setExpenses(newExpenses);
+            saveToStorage(newExpenses);
+            alert('저장되었습니다.');
+            resetForm();
+            setViewMode('list');
+          };
+
+          const deleteExpense = (id) => {
+            if (confirm('삭제하시겠습니까?')) {
+              const newExpenses = expenses.filter(e => e.id !== id);
+              setExpenses(newExpenses);
+              saveToStorage(newExpenses);
+              setViewMode('list');
+            }
+          };
+
+          const editExpense = (expense) => {
+            setCurrentExpense(expense);
+            setFormData(expense);
+            setViewMode('form');
+          };
+
+          const viewDetail = (expense) => {
+            setCurrentExpense(expense);
+            setViewMode('detail');
+          };
+
+          const resetForm = () => {
+            setFormData({
+              docNumber: '',
+              date: new Date().toISOString().split('T')[0],
+              department: '',
+              author: '',
+              summary: '판관비 지급의 건',
+              items: [{
+                paymentDate: '',
+                description: '',
+                accountCode: '',
+                paymentTo: '',
+                paymentMethod: '',
+                amount: '',
+                evidence: '',
+                notes: ''
+              }]
+            });
+            setCurrentExpense(null);
+          };
+
+          const numberFormat = (num) => {
+            return new Intl.NumberFormat('ko-KR').format(num);
+          };
+
+          if (viewMode === 'list') {
+            return (
+              <div className="min-h-screen bg-gray-50 p-8">
+                <div className="max-w-7xl mx-auto">
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h1 className="text-3xl font-bold text-blue-900">지출결의서 관리</h1>
+                      <p className="text-gray-600 mt-2">판관비 지출 결의서를 작성하고 관리합니다</p>
+                    </div>
+                    <button
+                      onClick={() => { resetForm(); setViewMode('form'); }}
+                      className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium shadow-lg"
+                    >
+                      + 새 결의서 작성
+                    </button>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-blue-600 text-white">
+                        <tr>
+                          <th className="px-4 py-3 text-left">문서번호</th>
+                          <th className="px-4 py-3 text-left">일자</th>
+                          <th className="px-4 py-3 text-left">부서</th>
+                          <th className="px-4 py-3 text-left">작성자</th>
+                          <th className="px-4 py-3 text-right">지급건수</th>
+                          <th className="px-4 py-3 text-right">총 지급액</th>
+                          <th className="px-4 py-3 text-center">관리</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expenses.length === 0 ? (
+                          <tr>
+                            <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                              저장된 결의서가 없습니다. 새 결의서를 작성해주세요.
+                            </td>
+                          </tr>
+                        ) : (
+                          expenses.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)).map((expense) => (
+                            <tr key={expense.id} className="border-b hover:bg-gray-50">
+                              <td className="px-4 py-3">{expense.docNumber || expense.id}</td>
+                              <td className="px-4 py-3">{expense.date}</td>
+                              <td className="px-4 py-3">{expense.department}</td>
+                              <td className="px-4 py-3">{expense.author}</td>
+                              <td className="px-4 py-3 text-right font-semibold text-gray-700">
+                                {expense.totalCount}건
+                              </td>
+                              <td className="px-4 py-3 text-right font-semibold text-blue-600">
+                                {numberFormat(expense.totalAmount)}원
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <button
+                                  onClick={() => viewDetail(expense)}
+                                  className="text-blue-600 hover:text-blue-800 px-3 py-1 rounded"
+                                >
+                                  보기
+                                </button>
+                                <button
+                                  onClick={() => editExpense(expense)}
+                                  className="text-green-600 hover:text-green-800 px-3 py-1 rounded ml-2"
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  onClick={() => deleteExpense(expense.id)}
+                                  className="text-red-600 hover:text-red-800 px-3 py-1 rounded ml-2"
+                                >
+                                  삭제
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          if (viewMode === 'detail') {
+            return (
+              <div className="min-h-screen bg-gray-50 p-8">
+                <div className="max-w-6xl mx-auto">
+                  <div className="mb-6">
+                    <button
+                      onClick={() => setViewMode('list')}
+                      className="text-blue-600 hover:text-blue-800 mb-4"
+                    >
+                      ← 목록으로
+                    </button>
+                  </div>
+
+                  <div className="bg-white rounded-lg shadow-md p-8">
+                    <div className="text-center mb-8 pb-4 border-b-2 border-blue-600">
+                      <div className="text-sm text-gray-600 mb-2">판관비</div>
+                      <h1 className="text-3xl font-bold text-blue-900">지 출 결 의 서</h1>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-6 mb-6 bg-blue-50 p-6 rounded-lg">
+                      <div>
+                        <span className="font-semibold text-gray-700">문서번호:</span>
+                        <span className="ml-2">{currentExpense.docNumber || currentExpense.id}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">일자:</span>
+                        <span className="ml-2">{currentExpense.date}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">부서:</span>
+                        <span className="ml-2">{currentExpense.department}</span>
+                      </div>
+                      <div>
+                        <span className="font-semibold text-gray-700">작성자:</span>
+                        <span className="ml-2">{currentExpense.author}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-semibold text-gray-700">적요:</span>
+                        <span className="ml-2">{currentExpense.summary}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                      <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                        <span className="font-semibold text-gray-700">총 지급건수:</span>
+                        <span className="ml-3 text-2xl font-bold text-gray-700">
+                          {currentExpense.totalCount}건
+                        </span>
+                      </div>
+                      <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                        <span className="font-semibold text-gray-700">총 지급액:</span>
+                        <span className="ml-3 text-2xl font-bold text-blue-600">
+                          {numberFormat(currentExpense.totalAmount)}원
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3 text-blue-900">지출 세부내역</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border text-sm">
+                          <thead className="bg-blue-600 text-white">
+                            <tr>
+                              <th className="border px-2 py-2">지급일자</th>
+                              <th className="border px-2 py-2">지급내용</th>
+                              <th className="border px-2 py-2">계정과목</th>
+                              <th className="border px-2 py-2">지급처</th>
+                              <th className="border px-2 py-2">지급방법</th>
+                              <th className="border px-2 py-2">지급액</th>
+                              <th className="border px-2 py-2">증빙자료</th>
+                              <th className="border px-2 py-2">기타</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {currentExpense.items.map((item, idx) => {
+                              if (!item.amount || parseFloat(item.amount) === 0) return null;
+                              return (
+                                <tr key={idx} className="hover:bg-gray-50">
+                                  <td className="border px-2 py-2 text-center">{item.paymentDate}</td>
+                                  <td className="border px-2 py-2">{item.description}</td>
+                                  <td className="border px-2 py-2 text-center">{item.accountCode}</td>
+                                  <td className="border px-2 py-2">{item.paymentTo}</td>
+                                  <td className="border px-2 py-2 text-center">{item.paymentMethod}</td>
+                                  <td className="border px-2 py-2 text-right font-semibold">
+                                    {numberFormat(item.amount)}
+                                  </td>
+                                  <td className="border px-2 py-2 text-center">{item.evidence}</td>
+                                  <td className="border px-2 py-2">{item.notes}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 flex gap-3">
+                      <button
+                        onClick={() => editExpense(currentExpense)}
+                        className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        className="flex-1 bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600"
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="min-h-screen bg-gray-50 p-8">
+              <div className="max-w-6xl mx-auto">
+                <div className="mb-6">
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className="text-blue-600 hover:text-blue-800 mb-4"
+                  >
+                    ← 목록으로
+                  </button>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-md p-8">
+                  <div className="text-center mb-8 pb-4 border-b-2 border-blue-600">
+                    <div className="text-sm text-gray-600 mb-2">판관비</div>
+                    <h1 className="text-3xl font-bold text-blue-900">지 출 결 의 서</h1>
+                  </div>
+
+                  <div className="bg-blue-50 p-6 rounded-lg mb-6">
+                    <h3 className="text-lg font-semibold mb-4 text-blue-900">기본 정보</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">문서번호</label>
+                        <input
+                          type="text"
+                          name="docNumber"
+                          value={formData.docNumber}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          placeholder="자동 생성"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">일자 *</label>
+                        <input
+                          type="date"
+                          name="date"
+                          value={formData.date}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">부서 *</label>
+                        <input
+                          type="text"
+                          name="department"
+                          value={formData.department}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">작성자 *</label>
+                        <input
+                          type="text"
+                          name="author"
+                          value={formData.author}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          required
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="block text-sm font-medium mb-1">적요</label>
+                        <input
+                          type="text"
+                          name="summary"
+                          value={formData.summary}
+                          onChange={handleInputChange}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                      <span className="font-semibold text-gray-700">총 지급건수:</span>
+                      <span className="ml-3 text-2xl font-bold text-gray-700">
+                        {calculateCount()}건
+                      </span>
+                    </div>
+                    <div className="bg-yellow-50 p-4 rounded-lg text-center">
+                      <span className="font-semibold text-gray-700">총 지급액:</span>
+                      <span className="ml-3 text-2xl font-bold text-blue-600">
+                        {numberFormat(calculateTotal())}원
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-lg font-semibold text-blue-900">지출 세부내역</h3>
+                      <button
+                        onClick={addItem}
+                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm"
+                      >
+                        + 항목 추가
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      {formData.items.map((item, idx) => (
+                        <div key={idx} className="border rounded-lg p-4 bg-gray-50">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="font-medium text-sm text-gray-600">항목 {idx + 1}</span>
+                            {formData.items.length > 1 && (
+                              <button
+                                onClick={() => removeItem(idx)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                삭제
+                              </button>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-4 gap-3 mb-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1">지급일자</label>
+                              <input
+                                type="date"
+                                value={item.paymentDate}
+                                onChange={(e) => handleItemChange(idx, 'paymentDate', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">지급내용</label>
+                              <input
+                                type="text"
+                                value={item.description}
+                                onChange={(e) => handleItemChange(idx, 'description', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm"
+                                placeholder="예: 기업카드 대금"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">계정과목</label>
+                              <input
+                                type="text"
+                                value={item.accountCode}
+                                onChange={(e) => handleItemChange(idx, 'accountCode', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm"
+                                placeholder="예: 접대비"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">지급처</label>
+                              <input
+                                type="text"
+                                value={item.paymentTo}
+                                onChange={(e) => handleItemChange(idx, 'paymentTo', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm"
+                                placeholder="예: 신한카드"
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-4 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1">지급방법</label>
+                              <select
+                                value={item.paymentMethod}
+                                onChange={(e) => handleItemChange(idx, 'paymentMethod', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm"
+                              >
+                                <option value="">선택</option>
+                                <option value="계좌이체">계좌이체</option>
+                                <option value="신용카드">신용카드</option>
+                                <option value="현금">현금</option>
+                                <option value="어음">어음</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">지급액</label>
+                              <input
+                                type="number"
+                                value={item.amount}
+                                onChange={(e) => handleItemChange(idx, 'amount', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm text-right"
+                                placeholder="0"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">증빙자료</label>
+                              <input
+                                type="text"
+                                value={item.evidence}
+                                onChange={(e) => handleItemChange(idx, 'evidence', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm"
+                                placeholder="예: 세금계산서"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1">기타</label>
+                              <input
+                                type="text"
+                                value={item.notes}
+                                onChange={(e) => handleItemChange(idx, 'notes', e.target.value)}
+                                className="w-full px-2 py-2 border rounded text-sm"
+                                placeholder="비고사항"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={saveExpense}
+                      className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium"
+                    >
+                      저장
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm('작성을 취소하시겠습니까?')) {
+                          resetForm();
+                          setViewMode('list');
+                        }
+                      }}
+                      className="flex-1 bg-gray-500 text-white px-6 py-3 rounded-lg hover:bg-gray-600 font-medium"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        ReactDOM.render(<ExpenseApprovalSystem />, document.getElementById('root'));
+    </script>
+</body>
+</html>
